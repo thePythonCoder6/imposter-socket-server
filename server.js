@@ -9,40 +9,36 @@ const io = new Server(server, {
   cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
-const rooms = {};  // Simple in-memory storage (fine for small games)
+const rooms = {}; // roomId → { players: [{id, name, connected}], ... }
 
-io.on('connection', (socket) => {
-  console.log('Player connected:', socket.id);
+app.get('/', (req, res) => res.send('<h1>Imposter Server Running</h1>'));
 
-  socket.on('createRoom', () => {
+io.on('connection', socket => {
+  console.log('Connected:', socket.id);
+
+  socket.on('createRoom', ({ name }) => {
     const roomId = uuidv4().slice(0, 6).toUpperCase();
-    rooms[roomId] = { players: [], gameState: null };
+    rooms[roomId] = { players: [{ id: socket.id, name, connected: true }] };
     socket.join(roomId);
     socket.emit('roomCreated', { roomId });
     io.to(roomId).emit('playerList', rooms[roomId].players);
   });
 
-  socket.on('joinRoom', (roomId) => {
+  socket.on('joinRoom', ({ roomId, name }) => {
     roomId = roomId.toUpperCase();
-    if (rooms[roomId]) {
-      socket.join(roomId);
-      const player = { id: socket.id, name: `Player ${rooms[roomId].players.length + 1}`, connected: true };
-      rooms[roomId].players.push(player);
-      socket.emit('roomJoined', { roomId, playerId: socket.id });
-      io.to(roomId).emit('playerList', rooms[roomId].players);
-    } else {
-      socket.emit('error', 'Room not found');
-    }
+    if (!rooms[roomId]) return socket.emit('error', 'Room not found');
+
+    rooms[roomId].players.push({ id: socket.id, name, connected: true });
+    socket.join(roomId);
+    socket.emit('roomJoined', { roomId });
+    io.to(roomId).emit('playerList', rooms[roomId].players);
   });
 
-  // TODO: Add full game events (startGame, playerReady, vote, disconnect handling)
-  // For now this handles room creation/joining – expand as needed
-
   socket.on('disconnect', () => {
-    console.log('Player disconnected:', socket.id);
-    // Optional: remove from rooms
+    console.log('Disconnected:', socket.id);
+    // optional: mark as disconnected
   });
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.listen(PORT, () => console.log(`Listening on ${PORT}`));
