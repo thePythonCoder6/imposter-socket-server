@@ -9,16 +9,18 @@ const io = new Server(server, {
   cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
-const rooms = {}; // roomId → { players: [{id, name, connected}], ... }
+const rooms = {}; // roomId → { players: [{id, name}] }
 
-app.get('/', (req, res) => res.send('<h1>Imposter Server Running</h1>'));
+app.get('/', (req, res) => {
+  res.send('<h1>Imposter Server Online – Names Ready</h1>');
+});
 
-io.on('connection', socket => {
+io.on('connection', (socket) => {
   console.log('Connected:', socket.id);
 
   socket.on('createRoom', ({ name }) => {
     const roomId = uuidv4().slice(0, 6).toUpperCase();
-    rooms[roomId] = { players: [{ id: socket.id, name, connected: true }] };
+    rooms[roomId] = { players: [{ id: socket.id, name: name || 'Host' }] };
     socket.join(roomId);
     socket.emit('roomCreated', { roomId });
     io.to(roomId).emit('playerList', rooms[roomId].players);
@@ -28,7 +30,7 @@ io.on('connection', socket => {
     roomId = roomId.toUpperCase();
     if (!rooms[roomId]) return socket.emit('error', 'Room not found');
 
-    rooms[roomId].players.push({ id: socket.id, name, connected: true });
+    rooms[roomId].players.push({ id: socket.id, name: name || 'Player' });
     socket.join(roomId);
     socket.emit('roomJoined', { roomId });
     io.to(roomId).emit('playerList', rooms[roomId].players);
@@ -36,9 +38,8 @@ io.on('connection', socket => {
 
   socket.on('disconnect', () => {
     console.log('Disconnected:', socket.id);
-    // optional: mark as disconnected
   });
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Listening on ${PORT}`));
+server.listen(PORT, () => console.log(`Server on ${PORT}`));
